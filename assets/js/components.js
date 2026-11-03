@@ -164,7 +164,7 @@
      <case-slider label="Selected product design work">
        <case-card …></case-card> …
      </case-slider>
-     Carousel with arrows, dots, swipe and arrow keys.
+     Scrollable carousel with arrows, dots and arrow keys.
      ------------------------------------------------------------------------ */
   class CaseSlider extends Component {
     render() {
@@ -173,6 +173,8 @@
       this.setAttribute("aria-roledescription", "carousel");
       this.setAttribute("aria-label", this.getAttribute("label") || "Projects");
 
+      const stage = document.createElement("div");
+      stage.className = "slider__stage";
       const viewport = document.createElement("div");
       viewport.className = "slider__viewport";
       const track = document.createElement("div");
@@ -192,21 +194,30 @@
           <button class="round-btn" type="button" aria-label="Next project"><img src="${ARROW}" alt=""></button>
         </div>
         <div class="slider__dots">${slides.map((_, i) => `<button class="slider__dot" type="button" aria-label="Show project ${i + 1}"></button>`).join("")}</div>`;
-      this.replaceChildren(viewport, ...controls.children);
+      stage.append(viewport, controls.querySelector(".slider__arrows"));
+      this.replaceChildren(stage, controls.querySelector(".slider__dots"));
 
       const dots = [...this.querySelectorAll(".slider__dot")];
       const [prev, next] = this.querySelectorAll(".round-btn");
       let index = 0;
-      const go = (i) => {
+      const setActive = (i) => {
         index = (i + slides.length) % slides.length;
-        const slide = slides[index];
-        track.style.transform = `translateX(${-(slide.offsetLeft - (viewport.clientWidth - slide.offsetWidth) / 2)}px)`;
         slides.forEach((s, n) => {
           s.classList.toggle("is-active", n === index);
           s.setAttribute("aria-hidden", String(n !== index));
           s.inert = n !== index;
         });
         dots.forEach((d, n) => d.setAttribute("aria-current", String(n === index)));
+      };
+      const go = (i, behavior = "smooth") => {
+        const target = slides[(i + slides.length) % slides.length];
+        setActive(i);
+        const targetCenter = target.getBoundingClientRect().left - viewport.getBoundingClientRect().left
+          + viewport.scrollLeft + target.offsetWidth / 2;
+        viewport.scrollTo({
+          left: targetCenter - viewport.clientWidth / 2,
+          behavior: reduceMotion ? "auto" : behavior,
+        });
       };
 
       prev.addEventListener("click", () => go(index - 1));
@@ -217,13 +228,61 @@
         if (e.key === "ArrowLeft") go(index - 1);
         if (e.key === "ArrowRight") go(index + 1);
       });
-      let startX = null;
-      viewport.addEventListener("pointerdown", (e) => { startX = e.clientX; });
-      viewport.addEventListener("pointerup", (e) => {
-        if (startX !== null && Math.abs(e.clientX - startX) > 50) go(index + (e.clientX < startX ? 1 : -1));
-        startX = null;
+      let scrollFrame = 0;
+      viewport.addEventListener("scroll", () => {
+        if (scrollFrame) cancelAnimationFrame(scrollFrame);
+        scrollFrame = requestAnimationFrame(() => {
+          const center = viewport.getBoundingClientRect().left + viewport.clientWidth / 2;
+          const nearest = slides.reduce((best, slide, n) => {
+            const distance = Math.abs(slide.getBoundingClientRect().left + slide.offsetWidth / 2 - center);
+            return distance < best.distance ? { index: n, distance } : best;
+          }, { index: 0, distance: Infinity });
+          setActive(nearest.index);
+          scrollFrame = 0;
+        });
       });
-      window.addEventListener("resize", () => go(index));
+
+      let dragStartX = 0;
+      let dragStartScroll = 0;
+      let isDragging = false;
+      let didDrag = false;
+      let suppressClick = false;
+      viewport.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "mouse" || e.button !== 0) return;
+        isDragging = true;
+        didDrag = false;
+        dragStartX = e.clientX;
+        dragStartScroll = viewport.scrollLeft;
+        viewport.setPointerCapture(e.pointerId);
+      });
+      viewport.addEventListener("pointermove", (e) => {
+        if (!isDragging) return;
+        const delta = e.clientX - dragStartX;
+        if (Math.abs(delta) > 4) {
+          didDrag = true;
+          viewport.classList.add("is-dragging");
+        }
+        if (didDrag) viewport.scrollLeft = dragStartScroll - delta;
+      });
+      const endDrag = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        viewport.classList.remove("is-dragging");
+        if (didDrag) {
+          suppressClick = true;
+          window.setTimeout(() => { suppressClick = false; }, 0);
+        }
+      };
+      viewport.addEventListener("pointerup", endDrag);
+      viewport.addEventListener("pointercancel", endDrag);
+      viewport.addEventListener("click", (e) => {
+        if (!suppressClick) return;
+        e.preventDefault();
+        e.stopPropagation();
+        suppressClick = false;
+      }, true);
+
+      window.addEventListener("resize", () => go(index, "auto"));
       requestAnimationFrame(() => go(0));
     }
   }
