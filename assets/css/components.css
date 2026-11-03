@@ -285,7 +285,6 @@ case-slider { display: block; --slider-edge: max(81px, calc((100vw - 1278px) / 2
   scroll-snap-type: x mandatory;
   scroll-padding-inline: var(--slider-edge);
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
   cursor: grab;
 }
 .slider__viewport::-webkit-scrollbar { display: none; }
