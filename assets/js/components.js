@@ -298,6 +298,11 @@
     render() {
       const h = /^h[2-4]$/.test(this.getAttribute("heading") || "") ? this.getAttribute("heading") : "h2";
       const desc = this.innerHTML.trim();
+      const image = `<img src="${esc(this.getAttribute("image"))}" alt="${esc(this.getAttribute("alt"))}" loading="lazy">`;
+      const mobileImage = this.getAttribute("mobile-image");
+      const media = mobileImage
+        ? `<picture><source media="(max-width: 760px)" srcset="${esc(mobileImage)}">${image}</picture>`
+        : image;
       this.innerHTML = `
         <article class="project" tabindex="0">
           <div class="project__top">
@@ -305,7 +310,7 @@
             <${h} class="project__name">${esc(this.getAttribute("name"))}</${h}>
           </div>
           <p class="project__desc">${desc}</p>
-          <div class="project__media"><img src="${esc(this.getAttribute("image"))}" alt="${esc(this.getAttribute("alt"))}" loading="lazy"></div>
+          <div class="project__media">${media}</div>
         </article>`;
     }
   }
